@@ -1,3 +1,11 @@
 // Files
 *.exe
 *.tga
+*.sln
+*.vcxproj
+*.vcxproj.user
+
+// Directories
+.vs/
+bin/
+bin-interm/

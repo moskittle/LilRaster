@@ -38,13 +38,11 @@ struct Line
 
 int main(/*int argc, char** argv*/)
 {
-	// TGAImage image(400, 400, TGAImage::RGB);
-	// Line line(100.0f, 100.0f, 300.0f, 300.0f);
-	// line.Draw(image, white);
+	 //TGAImage image(400, 400, TGAImage::RGB);
+	 //Line line(100.0f, 100.0f, 300.0f, 300.0f);
+	 //line.Draw(image, white);
 	
 	TGAImage image(100, 100, TGAImage::RGB);
-
-	
 	Line line0(13, 20, 80, 40); line0.Draw(image, white); 
 	Line line1(20, 13, 40, 80); line1.Draw(image, red); 
 	Line line2(80, 40, 13, 20); line0.Draw(image, red);
