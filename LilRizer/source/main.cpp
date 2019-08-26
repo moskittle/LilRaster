@@ -20,6 +20,10 @@ struct Point
 	Point() = default;
 	Point(int _x, int _y) : x(_x), y(_y) {}
 
+	inline Point operator+(const Point& rhs) const { return Point(x + rhs.x, y + rhs.y); }
+	inline Point operator-(const Point& rhs) const { return Point(x - rhs.x, y - rhs.y); }
+	inline Point operator*(float t) { return Point(x * t, y * t); }
+
 	int x = 0, y = 0;
 };
 
@@ -107,72 +111,30 @@ struct Triangle
 
 	void Draw(TGAImage& image, TGAColor color)
 	{
-		// sort vertices
-		if (P0.y > P1.y)
-		{
-			std::swap(P0.x, P1.x);
-			std::swap(P0.y, P1.y);
-		}
-		if (P0.y > P2.y)
-		{
-			std::swap(P0.x, P2.x);
-			std::swap(P0.y, P2.y);
-		}
-		if (P1.y > P2.y)
-		{
-			std::swap(P1.x, P2.x);
-			std::swap(P1.y, P2.y);
-		}
+		// Degenerated triangles
+		if (P0.y == P1.y && P0.y == P2.y) return;
 
-		float leftBound = 0.0f, rightBound = 0.0f;
+		// Sort vertices
+		if (P0.y > P1.y) { std::swap(P0, P1); }
+		if (P0.y > P2.y) { std::swap(P0, P2); }
+		if (P1.y > P2.y) { std::swap(P1, P2); }
 		
-		// two functions
-		float k02 = (P2.y - P0.y) / (float)(P2.x - P0.x);
-		float b02 = P0.y - k02 * P0.x;
-
-		float k12 = (P2.y - P1.y) / (float)(P2.x - P1.x);
-		float b12 = P1.y - k12 * P1.x;
-
-		float k01 = (P1.y - P0.y) / (float)(P1.x - P0.x);
-		float b01 = P1.y - k01 * P1.x;
-
+		int totalHeight = P2.y - P0.y;
 		for (int y = P0.y; y < P2.y; ++y)
 		{
-			if (P0.x < P1.x)
+			bool bIsFirstHalf = (y < P1.y) || (P1.y == P0.y);
+			int segementHeight = bIsFirstHalf ? (P1.y - P0.y + 1) : (P2.y - P1.y + 1);
+			
+			float alpha = static_cast<float>(y - P0.y) / totalHeight;
+			Point A = P0 + (P2 - P0) * alpha;
+			
+			float beta = bIsFirstHalf ? (static_cast<float>(y - P0.y) / segementHeight) : (static_cast<float>(y - P1.y) / segementHeight);
+			Point B = bIsFirstHalf ? (P0 + (P1 - P0) * beta) : (P1 + (P2 - P1) * beta);
+			
+			if (A.x > B.x) { std::swap(A, B); }
+			for (int x = A.x; x < B.x; ++x)
 			{
-				// between P0.y - P1.y
-				if (y < P1.y)
-				{
-					for (int x = (y - b02) / k02; x < (y - b01) / k01; ++x)
-					{
-						image.set(x, y, color);
-					}
-				}
-				else
-				{
-					for (int x = (y - b02) / k02; x < (y - b12) / k12; ++x)
-					{
-						image.set(x, y, color);
-					}
-				}
-			}
-			else
-			{
-				// between P0.y - P1.y
-				if (y < P1.y)
-				{
-					for (int x = (y - b01) / k01; x < (y - b02) / k02; ++x)
-					{
-						image.set(x, y, color);
-					}
-				}
-				else
-				{
-					for (int x = (y - b12) / k12; x < (y - b02) / k02; ++x)
-					{
-						image.set(x, y, color);
-					}
-				}
+				image.set(x, y, color);
 			}
 		}
 	}
