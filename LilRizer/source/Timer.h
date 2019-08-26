@@ -25,7 +25,7 @@ public:
 		double sec = ms * 0.001;
 
 		//std::cout << duration << "us (" << ms << "ms)\n" << std::endl;
-		std::cout << duration << "us (" << sec << "s)\n" << std::endl;
+		std::cout << "Time elapsed: " << ms << " ms (" << sec << "s)\n" << std::endl;
 	}
 
 private:
