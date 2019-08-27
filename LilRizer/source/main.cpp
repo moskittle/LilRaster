@@ -9,9 +9,13 @@
 
 #include "Timer.h"
 
-//#define DRAW_MODEL
-#define DRAW_TRIANGLE
+//#define DRAW_POLYGON_MODEL
+//#define DRAW_TRIANGLE
+#define DRAW_CLOWN_FACE
+
 #define BARYCENTRIC_METHOD
+//#define TRADITIONAL_METHOD
+
 
 const TGAColor white = TGAColor(255, 255, 255, 255);
 const TGAColor red = TGAColor(255, 0, 0, 255);
@@ -122,8 +126,11 @@ struct Triangle
 	{
 		Vec3f u = cross(Vec3f(P2.x - P0.x, P1.x - P0.x, P0.x - P.x), Vec3f(P2.y - P0.y, P1.y - P0.y, P0.y - P.y));
 		// abs(u.z) < means this is a degenerate triangle
-		if (std::abs(u.z < 1)) return Vec3f(-1, 1, 1);
+		if (std::abs(u.z) < 1) return Vec3f(-1, 1, 1);
 		return Vec3f(1.0f - (u.x + u.y) / u.z, u.y / u.z, u.x / u.z);
+
+		//Vec3f u = cross(Vec3f(pts[2][0] - pts[0][0], pts[1][0] - pts[0][0], pts[0][0] - P[0]), Vec3f(pts[2][1] - pts[0][1], pts[1][1] - pts[0][1], pts[0][1] - P[1]));
+		//if (std::abs(u[2]) < 1) return Vec3f(-1, 1, 1);
 	}
 
 
@@ -152,7 +159,9 @@ struct Triangle
 			}
 		}
 	}
-#else
+#endif //BARYCENTRIC_METHOD
+
+#ifdef TRADITIONAL_METHOD
 	// Traditional method
 	void Draw(TGAImage& image, TGAColor color)
 	{
@@ -176,12 +185,15 @@ struct Triangle
 			Point B = bIsFirstHalf ? (P0 + (P1 - P0) * beta) : (P1 + (P2 - P1) * beta);
 
 			if (A.x > B.x) { std::swap(A, B); }
-			for (int x = A.x; x < B.x; ++x) { image.set(x, y, color); }
+			for (int x = A.x; x < B.x; ++x) 
+			{ 
+				image.set(x, y, color);
+				std::cout <<x << ", " << y << ": " << (int)color.r << ", " << (int)color.g << ", " << (int)color.b << ", " << (int)color.a << std::endl;
+			}
+			
 		}
 	}
-#endif // BARYCENTRIC_METHOD
-
-	
+#endif TRADITIONAL_METHOD
 
 	Point P0, P1, P2;
 };
@@ -202,7 +214,46 @@ int main(/*int argc, char** argv*/)
 
 #endif // DRAW_TRIANGLE
 
-#ifdef DRAW_MODEL
+
+#ifdef DRAW_CLOWN_FACE
+	std::string filePath = "E:/dev/LilRizer/LilRizer/obj/";
+	Model* model = new Model(filePath.append("african_head.obj").c_str());
+
+	//for (int i = 0; i < model->nfaces(); ++i)
+	//{
+	//	std::vector<int> face = model->face(i);
+	//	Point screen_coords[3];
+	//	for (int j = 0; j < 3; ++j)
+	//	{
+	//		Vec3f world_coords = model->vert(face[j]);
+	//		screen_coords[j] = Point((world_coords.x + 1.) * width / 2., (world_coords.y + 1.) * height / 2.);
+	//	}
+	//	Triangle T(screen_coords[0], screen_coords[1], screen_coords[2]); T.Draw(image, TGAColor(rand() % 255, rand() % 255, rand() % 255, 255));
+	//}
+
+	Vec3f light_dir(0, 0, -1);
+	for (int i = 0; i < model->nfaces(); i++) {
+		std::vector<int> face = model->face(i);
+		Point screen_coords[3];
+		Vec3f world_coords[3];
+		for (int j = 0; j < 3; j++) {
+			Vec3f v = model->vert(face[j]);
+			screen_coords[j] = Point((v.x + 1.) * width / 2., (v.y + 1.) * height / 2.);
+			world_coords[j] = v;
+		}
+		Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
+		n.normalize();
+		float intensity = n * light_dir;
+		if (intensity > 0) {
+			Triangle T(screen_coords[0], screen_coords[1], screen_coords[2]); T.Draw(image, TGAColor(intensity * 255, intensity * 255, intensity * 255, 255));
+		}
+	}
+
+#endif // DRAW_CLOWN_FACE
+
+	
+
+#ifdef DRAW_POLYGON_MODEL
 
 	// TODO: Unsolved relative path issue
 	//char filePath[80] = "E:/dev/LilRizer/LilRizer/obj/";	
@@ -229,7 +280,7 @@ int main(/*int argc, char** argv*/)
 	}
 	timer.Stop();
 
-#endif // DRAW_MODEL
+#endif // DRAW_POLYGON_MODEL
 
 	image.flip_vertically(); // i want to have the origin at the left bottom corner of the image
 	image.write_tga_file("output.tga");
