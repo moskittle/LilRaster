@@ -156,6 +156,7 @@ struct Triangle
 		bboxMin.y = std::max(0, std::min(std::min(P0.y, P1.y), P2.y));
 
 		Point P;
+		int index;
 		for (P.x = bboxMin.x; P.x <= bboxMax.x; ++P.x)
 		{
 			for (P.y = bboxMin.y; P.y <= bboxMax.y; ++P.y)
@@ -166,8 +167,13 @@ struct Triangle
 				// zBuffer
 				P.z = 0;
 				P.z = P0.z * bc_coord.x + P1.z * bc_coord.y + P2.z * bc_coord.z;
+				index = static_cast<int>(P.x + P.y * width);
+				if (P.z > zBuffer[index])
+				{
+					zBuffer[index] = P.z;
+					image.set(P.x, P.y, color);
+				}
 
-				image.set(P.x, P.y, color);
 			}
 		}
 	}
