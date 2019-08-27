@@ -1,5 +1,8 @@
 #include <iostream>
 #include <string>
+#include <vector>
+#include <algorithm>
+
 
 #include "tgaimage.h"
 #include "model.h"
@@ -8,6 +11,7 @@
 
 //#define DRAW_MODEL
 #define DRAW_TRIANGLE
+#define BARYCENTRIC_METHOD
 
 const TGAColor white = TGAColor(255, 255, 255, 255);
 const TGAColor red = TGAColor(255, 0, 0, 255);
@@ -94,6 +98,11 @@ struct Line
 	Point P0, P1;
 };
 
+Vec3f cross(Vec3f v1, Vec3f v2)
+{
+	return Vec3f(v1.y * v2.z - v2.y * v1.z, v1.z * v2.x - v2.z * v1.x, v1.x * v2.y - v2.x * v1.y);
+}
+
 struct Triangle
 {
 	Triangle() = default;
@@ -109,6 +118,42 @@ struct Triangle
 		Line L2(P2, P0); L2.Draw(image, color);
 	}
 
+	Vec3f GetBaricentricCoord(Point P)
+	{
+		Vec3f u = cross(Vec3f(P2.x - P0.x, P1.x - P0.x, P0.x - P.x), Vec3f(P2.y - P0.y, P1.y - P0.y, P0.y - P.y));
+		// abs(u.z) < means this is a degenerate triangle
+		if (std::abs(u.z < 1)) return Vec3f(-1, 1, 1);
+		return Vec3f(1.0f - (u.x + u.y) / u.z, u.y / u.z, u.x / u.z);
+	}
+
+
+#ifdef BARYCENTRIC_METHOD
+	// Barycentric and bounding box method
+	void Draw(TGAImage& image, TGAColor color)
+	{
+		Point bboxMin(image.get_width() - 1, image.get_height() - 1);
+		Point bboxMax(0, 0);
+		Point clamp(image.get_width() - 1, image.get_height() - 1);
+
+		// Get bbox boundaries
+		bboxMax.x = std::min(clamp.x, std::max(std::max(P0.x, P1.x), P2.x));
+		bboxMax.y = std::min(clamp.y, std::max(std::max(P0.y, P1.y), P2.y));
+		bboxMin.x = std::max(0, std::min(std::min(P0.x, P1.x), P2.x));
+		bboxMin.y = std::max(0, std::min(std::min(P0.y, P1.y), P2.y));
+
+		Point P;
+		for (P.x = bboxMin.x; P.x <= bboxMax.x; ++P.x)
+		{
+			for (P.y = bboxMin.y; P.y <= bboxMax.y; ++P.y)
+			{
+				Vec3f bc_coord = GetBaricentricCoord(P);
+				if (bc_coord.x < 0 || bc_coord.y < 0 || bc_coord.z < 0) { continue; }
+				image.set(P.x, P.y, color);
+			}
+		}
+	}
+#else
+	// Traditional method
 	void Draw(TGAImage& image, TGAColor color)
 	{
 		// Degenerated triangles
@@ -118,26 +163,25 @@ struct Triangle
 		if (P0.y > P1.y) { std::swap(P0, P1); }
 		if (P0.y > P2.y) { std::swap(P0, P2); }
 		if (P1.y > P2.y) { std::swap(P1, P2); }
-		
+
 		int totalHeight = P2.y - P0.y;
 		for (int y = P0.y; y < P2.y; ++y)
 		{
 			bool bIsFirstHalf = (y < P1.y) || (P1.y == P0.y);
 			int segementHeight = bIsFirstHalf ? (P1.y - P0.y + 1) : (P2.y - P1.y + 1);
-			
+
 			float alpha = static_cast<float>(y - P0.y) / totalHeight;
-			Point A = P0 + (P2 - P0) * alpha;
-			
 			float beta = bIsFirstHalf ? (static_cast<float>(y - P0.y) / segementHeight) : (static_cast<float>(y - P1.y) / segementHeight);
+			Point A = P0 + (P2 - P0) * alpha;
 			Point B = bIsFirstHalf ? (P0 + (P1 - P0) * beta) : (P1 + (P2 - P1) * beta);
-			
+
 			if (A.x > B.x) { std::swap(A, B); }
-			for (int x = A.x; x < B.x; ++x)
-			{
-				image.set(x, y, color);
-			}
+			for (int x = A.x; x < B.x; ++x) { image.set(x, y, color); }
 		}
 	}
+#endif // BARYCENTRIC_METHOD
+
+	
 
 	Point P0, P1, P2;
 };
