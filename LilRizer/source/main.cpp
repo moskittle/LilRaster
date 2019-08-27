@@ -9,9 +9,14 @@
 
 #include "Timer.h"
 
+//#define DRAW_IMAGE
+#define DRAW_SCENE
+
 //#define DRAW_POLYGON_MODEL
 //#define DRAW_TRIANGLE
-#define DRAW_CLOWN_FACE
+//#define DRAW_CLOWN_FACE
+//#define DRAW_BACKFACE_CULLING
+
 
 #define BARYCENTRIC_METHOD
 //#define TRADITIONAL_METHOD
@@ -20,8 +25,15 @@
 const TGAColor white = TGAColor(255, 255, 255, 255);
 const TGAColor red = TGAColor(255, 0, 0, 255);
 const TGAColor green = TGAColor(0, 255, 0, 255);
+const TGAColor blue = TGAColor(0, 0, 255, 255);
 const int width = 800, height = 800;
 Timer timer;
+
+// cross product
+Vec3f cross(Vec3f v1, Vec3f v2)
+{
+	return Vec3f(v1.y * v2.z - v2.y * v1.z, v1.z * v2.x - v2.z * v1.x, v1.x * v2.y - v2.x * v1.y);
+}
 
 struct Point
 {
@@ -102,11 +114,6 @@ struct Line
 	Point P0, P1;
 };
 
-Vec3f cross(Vec3f v1, Vec3f v2)
-{
-	return Vec3f(v1.y * v2.z - v2.y * v1.z, v1.z * v2.x - v2.z * v1.x, v1.x * v2.y - v2.x * v1.y);
-}
-
 struct Triangle
 {
 	Triangle() = default;
@@ -125,12 +132,10 @@ struct Triangle
 	Vec3f GetBaricentricCoord(Point P)
 	{
 		Vec3f u = cross(Vec3f(P2.x - P0.x, P1.x - P0.x, P0.x - P.x), Vec3f(P2.y - P0.y, P1.y - P0.y, P0.y - P.y));
-		// abs(u.z) < means this is a degenerate triangle
+		
+		// abs(u.z) < 1 means this is a degenerate triangle
 		if (std::abs(u.z) < 1) return Vec3f(-1, 1, 1);
 		return Vec3f(1.0f - (u.x + u.y) / u.z, u.y / u.z, u.x / u.z);
-
-		//Vec3f u = cross(Vec3f(pts[2][0] - pts[0][0], pts[1][0] - pts[0][0], pts[0][0] - P[0]), Vec3f(pts[2][1] - pts[0][1], pts[1][1] - pts[0][1], pts[0][1] - P[1]));
-		//if (std::abs(u[2]) < 1) return Vec3f(-1, 1, 1);
 	}
 
 
@@ -198,10 +203,41 @@ struct Triangle
 	Point P0, P1, P2;
 };
 
+std::ostream& operator<<(std::ostream& s, TGAColor& color) {
+	s << "(" << (int)color.r << ", " << (int)color.g << ", " << (int)color.b << ", " << (int)color.a << ")\n";
+	return s;
+}
+
+void rasterize(Point P0, Point P1, TGAImage& image, TGAColor color, int yBuffer[])
+{
+	if (P0.x > P1.x) { std::swap(P0, P1); }
+
+	for (int x = P0.x, y = 0; x <= P1.x; ++x)
+	{
+		float t = (x - P0.x) / static_cast<float>(P1.x - P0.x);
+		y = (1.0 - t) * P0.y + t * P1.y ;
+
+		// Check if the value is closed to camera
+		if (yBuffer[x] < y)
+		{
+			yBuffer[x] = y;
+			image.set(x, 0, color);
+			//std::cout << x << ", " << y << " : " << color << std::endl;
+		}
+	}
+}
+
 int main(/*int argc, char** argv*/)
 {
 	Timer timer;
+
+#ifdef DRAW_IMAGE
+
 	TGAImage image(width, height, TGAImage::RGB);
+
+
+	std::string filePath = "E:/dev/LilRizer/LilRizer/obj/";
+	Model* model = new Model(filePath.append("african_head.obj").c_str());
 
 #ifdef DRAW_TRIANGLE
 	Point p0[3] = { Point(10, 70),   Point(50, 160),  Point(70, 80) };
@@ -210,27 +246,23 @@ int main(/*int argc, char** argv*/)
 	Triangle t0(p0[0], p0[1], p0[2]); t0.Draw(image, red);
 	Triangle t1(p1[0], p1[1], p1[2]); t1.Draw(image, white);
 	Triangle t2(p2[0], p2[1], p2[2]); t2.Draw(image, green);
-
-
 #endif // DRAW_TRIANGLE
 
-
 #ifdef DRAW_CLOWN_FACE
-	std::string filePath = "E:/dev/LilRizer/LilRizer/obj/";
-	Model* model = new Model(filePath.append("african_head.obj").c_str());
+	for (int i = 0; i < model->nfaces(); ++i)
+	{
+		std::vector<int> face = model->face(i);
+		Point screen_coords[3];
+		for (int j = 0; j < 3; ++j)
+		{
+			Vec3f world_coords = model->vert(face[j]);
+			screen_coords[j] = Point((world_coords.x + 1.) * width / 2., (world_coords.y + 1.) * height / 2.);
+		}
+		Triangle T(screen_coords[0], screen_coords[1], screen_coords[2]); T.Draw(image, TGAColor(rand() % 255, rand() % 255, rand() % 255, 255));
+	}
+#endif // DRAW_CLOWN_FACE
 
-	//for (int i = 0; i < model->nfaces(); ++i)
-	//{
-	//	std::vector<int> face = model->face(i);
-	//	Point screen_coords[3];
-	//	for (int j = 0; j < 3; ++j)
-	//	{
-	//		Vec3f world_coords = model->vert(face[j]);
-	//		screen_coords[j] = Point((world_coords.x + 1.) * width / 2., (world_coords.y + 1.) * height / 2.);
-	//	}
-	//	Triangle T(screen_coords[0], screen_coords[1], screen_coords[2]); T.Draw(image, TGAColor(rand() % 255, rand() % 255, rand() % 255, 255));
-	//}
-
+#ifdef DRAW_BACKFACE_CULLING
 	Vec3f light_dir(0, 0, -1);
 	for (int i = 0; i < model->nfaces(); i++) {
 		std::vector<int> face = model->face(i);
@@ -248,10 +280,7 @@ int main(/*int argc, char** argv*/)
 			Triangle T(screen_coords[0], screen_coords[1], screen_coords[2]); T.Draw(image, TGAColor(intensity * 255, intensity * 255, intensity * 255, 255));
 		}
 	}
-
-#endif // DRAW_CLOWN_FACE
-
-	
+#endif // DRAW_BACKFACE_CULLING
 
 #ifdef DRAW_POLYGON_MODEL
 
@@ -282,7 +311,43 @@ int main(/*int argc, char** argv*/)
 
 #endif // DRAW_POLYGON_MODEL
 
+	
+
+
 	image.flip_vertically(); // i want to have the origin at the left bottom corner of the image
 	image.write_tga_file("output.tga");
+	
+#endif // DRAW_IMAGE
+
+#ifdef DRAW_SCENE
+	
+	//TGAImage scene(width, height, TGAImage::RGB);
+
+	//// scene "2d mesh"
+	//Line L0(Point(20, 34), Point(744, 400)); L0.Draw(scene, red);
+	//Line L1(Point(120, 434), Point(444, 400)); L1.Draw(scene, green);
+	//Line L2(Point(330, 463), Point(594, 200)); L2.Draw(scene, blue);
+
+	//scene.flip_vertically(); // i want to have the origin at the left bottom corner of the image
+	//scene.write_tga_file("scene.tga");
+
+	//// screen line
+	//Line screen_line(Point(10, 10), Point(790, 10)); screen_line.Draw(scene, white);
+
+	TGAImage render(width, 1, TGAImage::RGB);
+	int yBuffer[width];
+	for (int i = 0; i < width; ++i) { yBuffer[i] = std::numeric_limits<int>::min(); }
+	
+	rasterize(Point(20, 34), Point(744, 400), render, red, yBuffer);
+	rasterize(Point(120, 434), Point(444, 400), render, green, yBuffer);
+	rasterize(Point(330, 463), Point(594, 200), render, blue, yBuffer);
+
+	render.flip_vertically();
+	render.write_tga_file("render.tga");
+
+
+#endif // DRAW_SCENE
+
+	
 	return 0;
 }

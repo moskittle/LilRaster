@@ -57,7 +57,10 @@ struct TGAColor {
 		}
 		return *this;
 	}
+	friend std::ostream& operator<<(std::ostream& s, TGAColor& color);
 };
+
+
 
 
 class TGAImage {
