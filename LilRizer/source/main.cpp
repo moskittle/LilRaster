@@ -9,13 +9,13 @@
 
 #include "Timer.h"
 
-//#define DRAW_IMAGE
-#define DRAW_SCENE
+#define DRAW_IMAGE
+//#define DRAW_SCENE
 
 //#define DRAW_POLYGON_MODEL
 //#define DRAW_TRIANGLE
 //#define DRAW_CLOWN_FACE
-//#define DRAW_BACKFACE_CULLING
+#define DRAW_BACKFACE_CULLING
 
 
 #define BARYCENTRIC_METHOD
@@ -38,13 +38,15 @@ Vec3f cross(Vec3f v1, Vec3f v2)
 struct Point
 {
 	Point() = default;
-	Point(int _x, int _y) : x(_x), y(_y) {}
+	Point(int _x, int _y) : x(_x), y(_y), z() {}
+	Point(int _x, int _y, float _z) : x(_x), y(_y), z(_z) {}
 
 	inline Point operator+(const Point& rhs) const { return Point(x + rhs.x, y + rhs.y); }
 	inline Point operator-(const Point& rhs) const { return Point(x - rhs.x, y - rhs.y); }
 	inline Point operator*(float t) { return Point(x * t, y * t); }
 
 	int x = 0, y = 0;
+	float z = 0.0f;
 };
 
 struct Line
@@ -141,9 +143,9 @@ struct Triangle
 
 #ifdef BARYCENTRIC_METHOD
 	// Barycentric and bounding box method
-	void Draw(TGAImage& image, TGAColor color)
+	void Draw(float* zBuffer, TGAImage& image, TGAColor color)
 	{
-		Point bboxMin(image.get_width() - 1, image.get_height() - 1);
+		Point bboxMin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
 		Point bboxMax(0, 0);
 		Point clamp(image.get_width() - 1, image.get_height() - 1);
 
@@ -160,6 +162,11 @@ struct Triangle
 			{
 				Vec3f bc_coord = GetBaricentricCoord(P);
 				if (bc_coord.x < 0 || bc_coord.y < 0 || bc_coord.z < 0) { continue; }
+				
+				// zBuffer
+				P.z = 0;
+				P.z = P0.z * bc_coord.x + P1.z * bc_coord.y + P2.z * bc_coord.z;
+
 				image.set(P.x, P.y, color);
 			}
 		}
@@ -208,7 +215,7 @@ std::ostream& operator<<(std::ostream& s, TGAColor& color) {
 	return s;
 }
 
-void rasterize(Point P0, Point P1, TGAImage& image, TGAColor color, int yBuffer[])
+void rasterize_1D(Point P0, Point P1, TGAImage& image, TGAColor color, int yBuffer[])
 {
 	if (P0.x > P1.x) { std::swap(P0, P1); }
 
@@ -222,7 +229,6 @@ void rasterize(Point P0, Point P1, TGAImage& image, TGAColor color, int yBuffer[
 		{
 			yBuffer[x] = y;
 			image.set(x, 0, color);
-			//std::cout << x << ", " << y << " : " << color << std::endl;
 		}
 	}
 }
@@ -263,21 +269,27 @@ int main(/*int argc, char** argv*/)
 #endif // DRAW_CLOWN_FACE
 
 #ifdef DRAW_BACKFACE_CULLING
+	float* zBuffer = new float[width * height];
+	for (int i = 0; i < height; ++i)
+		for (int j = 0; j < width; ++j)
+			zBuffer[i * width + j] = std::numeric_limits<int>::min();
+
 	Vec3f light_dir(0, 0, -1);
 	for (int i = 0; i < model->nfaces(); i++) {
 		std::vector<int> face = model->face(i);
 		Point screen_coords[3];
 		Vec3f world_coords[3];
-		for (int j = 0; j < 3; j++) {
+		for (int j = 0; j < 3; j++) 
+		{
 			Vec3f v = model->vert(face[j]);
-			screen_coords[j] = Point((v.x + 1.) * width / 2., (v.y + 1.) * height / 2.);
+			screen_coords[j] = Point((v.x + 1.) * width / 2., (v.y + 1.) * height / 2., v.z);
 			world_coords[j] = v;
 		}
 		Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
 		n.normalize();
 		float intensity = n * light_dir;
 		if (intensity > 0) {
-			Triangle T(screen_coords[0], screen_coords[1], screen_coords[2]); T.Draw(image, TGAColor(intensity * 255, intensity * 255, intensity * 255, 255));
+			Triangle T(screen_coords[0], screen_coords[1], screen_coords[2]); T.Draw(zBuffer, image, TGAColor(intensity * 255, intensity * 255, intensity * 255, 255));
 		}
 	}
 #endif // DRAW_BACKFACE_CULLING
@@ -311,9 +323,6 @@ int main(/*int argc, char** argv*/)
 
 #endif // DRAW_POLYGON_MODEL
 
-	
-
-
 	image.flip_vertically(); // i want to have the origin at the left bottom corner of the image
 	image.write_tga_file("output.tga");
 	
@@ -338,9 +347,9 @@ int main(/*int argc, char** argv*/)
 	int yBuffer[width];
 	for (int i = 0; i < width; ++i) { yBuffer[i] = std::numeric_limits<int>::min(); }
 	
-	rasterize(Point(20, 34), Point(744, 400), render, red, yBuffer);
-	rasterize(Point(120, 434), Point(444, 400), render, green, yBuffer);
-	rasterize(Point(330, 463), Point(594, 200), render, blue, yBuffer);
+	rasterize_1D(Point(20, 34), Point(744, 400), render, red, yBuffer);
+	rasterize_1D(Point(120, 434), Point(444, 400), render, green, yBuffer);
+	rasterize_1D(Point(330, 463), Point(594, 200), render, blue, yBuffer);
 
 	render.flip_vertically();
 	render.write_tga_file("render.tga");
