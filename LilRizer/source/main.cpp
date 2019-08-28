@@ -26,13 +26,20 @@ const TGAColor white = TGAColor(255, 255, 255, 255);
 const TGAColor red = TGAColor(255, 0, 0, 255);
 const TGAColor green = TGAColor(0, 255, 0, 255);
 const TGAColor blue = TGAColor(0, 0, 255, 255);
-const int width = 800, height = 800;
+const int width = 800, height = 800, depth = 255;
+
 Timer timer;
 
 // cross product
 Vec3f cross(Vec3f v1, Vec3f v2)
 {
 	return Vec3f(v1.y * v2.z - v2.y * v1.z, v1.z * v2.x - v2.z * v1.x, v1.x * v2.y - v2.x * v1.y);
+}
+
+// print color data
+std::ostream& operator<<(std::ostream& s, TGAColor& color) {
+	s << "(" << (int)color.r << ", " << (int)color.g << ", " << (int)color.b << ", " << (int)color.a << ")\n";
+	return s;
 }
 
 struct Point
@@ -140,11 +147,22 @@ struct Triangle
 		return Vec3f(1.0f - (u.x + u.y) / u.z, u.y / u.z, u.x / u.z);
 	}
 
+	// Convert Baricentric coordinates to UV 
+	Vec2i Interpolate(Vec2i u0, Vec2i u1, Vec2i u2, Vec3f bc_coord)
+	{
+		//return Vec2i(u0.x * bc_coord.x + u1.x*bc_coord.x + u2.x * bc_coord.x, u0.y * bc_coord.y + u1.y * bc_coord.y + u2.y * bc_coord.y);
+		return u0 * bc_coord.x + u1 * bc_coord.y + u2 * bc_coord.z;
+	}
 
 #ifdef BARYCENTRIC_METHOD
 	// Barycentric and bounding box method
-	void Draw(float* zBuffer, TGAImage& image, TGAColor color)
+	void Draw(Vec2i u0, Vec2i u1, Vec2i u2, float* zBuffer, TGAImage& image, float intensity, std::shared_ptr<Model> model)
 	{
+		// Sort
+		if (P0.y > P1.y) { std::swap(P0, P1); std::swap(u0, u1); }
+		if (P0.y > P2.y) { std::swap(P0, P2); std::swap(u0, u2); }
+		if (P1.y > P2.y) { std::swap(P1, P2); std::swap(u1, u2); }
+		
 		Point bboxMin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
 		Point bboxMax(0, 0);
 		Point clamp(image.get_width() - 1, image.get_height() - 1);
@@ -157,6 +175,8 @@ struct Triangle
 
 		Point P;
 		int index;
+		Vec2i uv;
+		TGAColor color;
 		for (P.x = bboxMin.x; P.x <= bboxMax.x; ++P.x)
 		{
 			for (P.y = bboxMin.y; P.y <= bboxMax.y; ++P.y)
@@ -172,7 +192,9 @@ struct Triangle
 				index = static_cast<int>(P.x + P.y * width);
 				if (P.z > zBuffer[index])
 				{
+					uv = Interpolate(u0, u1, u2, bc_coord);
 					zBuffer[index] = P.z;
+					color = model->diffuse(uv);
 					image.set(P.x, P.y, color);
 				} 
 			}
@@ -217,10 +239,7 @@ struct Triangle
 	Point P0, P1, P2;
 };
 
-std::ostream& operator<<(std::ostream& s, TGAColor& color) {
-	s << "(" << (int)color.r << ", " << (int)color.g << ", " << (int)color.b << ", " << (int)color.a << ")\n";
-	return s;
-}
+
 
 void rasterize_1D(Point P0, Point P1, TGAImage& image, TGAColor color, int yBuffer[])
 {
@@ -288,7 +307,7 @@ int main(/*int argc, char** argv*/)
 		for (int j = 0; j < 3; j++) 
 		{
 			Vec3f v = model->vert(face[j]);
-			screen_coords[j] = Point((v.x + 1.) * width / 2., (v.y + 1.) * height / 2., v.z);
+			screen_coords[j] = Point((v.x + 1.) * width / 2., (v.y + 1.) * height / 2., (v.z + 1.) * depth / 2.);
 			world_coords[j] = v;
 		}
 		Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
@@ -297,8 +316,12 @@ int main(/*int argc, char** argv*/)
 		float intensity = n * light_dir;
 		if (intensity > 0) {
 			// uv
-			
-			Triangle T(screen_coords[0], screen_coords[1], screen_coords[2]); T.Draw(zBuffer, outputImage, TGAColor(intensity * 255, intensity * 255, intensity * 255, 255));
+			Vec2i uv[3];
+			for (int k = 0; k < 3; k++) {
+				uv[k] = model->uv(i, k);
+			}
+			Triangle T(screen_coords[0], screen_coords[1], screen_coords[2]); 
+			T.Draw(uv[0], uv[1], uv[2], zBuffer, outputImage, intensity, model);
 		}
 	}
 #endif // DRAW_BACKFACE_CULLING
