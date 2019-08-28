@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
-
+#include <memory>
 
 #include "tgaimage.h"
 #include "model.h"
@@ -165,6 +165,8 @@ struct Triangle
 				if (bc_coord.x < 0 || bc_coord.y < 0 || bc_coord.z < 0) { continue; }
 				
 				// zBuffer
+				// for every pixel, multiply its barycentric coordinates 
+				// by the z-values of the vertices of the triangle we rasterize
 				P.z = 0;
 				P.z = P0.z * bc_coord.x + P1.z * bc_coord.y + P2.z * bc_coord.z;
 				index = static_cast<int>(P.x + P.y * width);
@@ -172,8 +174,7 @@ struct Triangle
 				{
 					zBuffer[index] = P.z;
 					image.set(P.x, P.y, color);
-				}
-
+				} 
 			}
 		}
 	}
@@ -244,12 +245,11 @@ int main(/*int argc, char** argv*/)
 	Timer timer;
 
 #ifdef DRAW_IMAGE
+	std::string filePath = "E:/dev/LilRizer/LilRizer/obj/african_head/";
 
-	TGAImage image(width, height, TGAImage::RGB);
+	TGAImage outputImage(width, height, TGAImage::RGB);
 
-
-	std::string filePath = "E:/dev/LilRizer/LilRizer/obj/";
-	Model* model = new Model(filePath.append("african_head.obj").c_str());
+	std::shared_ptr<Model> model = std::make_shared<Model>((filePath + "african_head.obj").c_str());
 
 #ifdef DRAW_TRIANGLE
 	Point p0[3] = { Point(10, 70),   Point(50, 160),  Point(70, 80) };
@@ -293,9 +293,12 @@ int main(/*int argc, char** argv*/)
 		}
 		Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
 		n.normalize();
+
 		float intensity = n * light_dir;
 		if (intensity > 0) {
-			Triangle T(screen_coords[0], screen_coords[1], screen_coords[2]); T.Draw(zBuffer, image, TGAColor(intensity * 255, intensity * 255, intensity * 255, 255));
+			// uv
+			
+			Triangle T(screen_coords[0], screen_coords[1], screen_coords[2]); T.Draw(zBuffer, outputImage, TGAColor(intensity * 255, intensity * 255, intensity * 255, 255));
 		}
 	}
 #endif // DRAW_BACKFACE_CULLING
@@ -329,8 +332,8 @@ int main(/*int argc, char** argv*/)
 
 #endif // DRAW_POLYGON_MODEL
 
-	image.flip_vertically(); // i want to have the origin at the left bottom corner of the image
-	image.write_tga_file("output.tga");
+	outputImage.flip_vertically(); // i want to have the origin at the left bottom corner of the image
+	outputImage.write_tga_file("output.tga");
 	
 #endif // DRAW_IMAGE
 
