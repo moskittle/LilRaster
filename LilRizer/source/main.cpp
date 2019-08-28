@@ -150,7 +150,6 @@ struct Triangle
 	// Convert Baricentric coordinates to UV 
 	Vec2i Interpolate(Vec2i u0, Vec2i u1, Vec2i u2, Vec3f bc_coord)
 	{
-		//return Vec2i(u0.x * bc_coord.x + u1.x*bc_coord.x + u2.x * bc_coord.x, u0.y * bc_coord.y + u1.y * bc_coord.y + u2.y * bc_coord.y);
 		return u0 * bc_coord.x + u1 * bc_coord.y + u2 * bc_coord.z;
 	}
 
@@ -158,11 +157,6 @@ struct Triangle
 	// Barycentric and bounding box method
 	void Draw(Vec2i u0, Vec2i u1, Vec2i u2, float* zBuffer, TGAImage& image, float intensity, std::shared_ptr<Model> model)
 	{
-		// Sort
-		if (P0.y > P1.y) { std::swap(P0, P1); std::swap(u0, u1); }
-		if (P0.y > P2.y) { std::swap(P0, P2); std::swap(u0, u2); }
-		if (P1.y > P2.y) { std::swap(P1, P2); std::swap(u1, u2); }
-		
 		Point bboxMin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
 		Point bboxMax(0, 0);
 		Point clamp(image.get_width() - 1, image.get_height() - 1);
